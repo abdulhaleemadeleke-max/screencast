@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ScreenCast – Watch</title><link rel="stylesheet" href="style.css">
+</head><body>
+<div class="card">
+  <h1>Watch a cast</h1>
+  <p class="sub">Enter the code from the person who is casting.</p>
+
+  <div class="row" id="join">
+    <input id="room" maxlength="6" placeholder="CODE" autocomplete="off">
+    <button id="go">Watch</button>
+  </div>
+
+  <video id="video" class="hidden" autoplay muted playsinline controls></video>
+  <div class="row hidden" id="controls">
+    <button id="unmute" class="ghost">Unmute</button>
+    <button id="full" class="ghost">Fullscreen</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let ws, pc, iceServers = [];
+
+const setStatus = (t, err) => { $('status').textContent = t; $('status').className = 'status' + (err ? ' err' : ''); };
+const showJoin = () => { $('join').classList.remove('hidden'); $('video').classList.add('hidden'); $('controls').classList.add('hidden'); };
+
+async function connect() {
+  const room = $('room').value.trim().toUpperCase();
+  if (!room) return;
+  setStatus('Connecting…');
+  try { iceServers = (await (await fetch('/api/ice')).json()).iceServers; } catch { iceServers = []; }
+  if (ws) ws.close();
+
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', room }));
+  ws.onmessage = async (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'invalid') { setStatus(m.reason, true); showJoin(); }
+    else if (m.type === 'joined') setStatus('Joined. Starting video…');
+    else if (m.type === 'sender-left') {
+      if (pc) { pc.close(); pc = null; }
+      $('video').srcObject = null; showJoin(); setStatus('The cast has ended.');
+    } else if (m.type === 'offer') {
+      pc = new RTCPeerConnection({ iceServers });
+      pc.onicecandidate = (e) => e.candidate && ws.send(JSON.stringify({ type: 'ice', candidate: e.candidate }));
+      pc.ontrack = (e) => {
+        const v = $('video');
+        v.srcObject = e.streams[0];
+        v.classList.remove('hidden'); $('controls').classList.remove('hidden'); $('join').classList.add('hidden');
+        setStatus('Connected.');
+        v.play().catch(() => {});
+      };
+      await pc.setRemoteDescription(m.sdp);
+      await pc.setLocalDescription(await pc.createAnswer());
+      ws.send(JSON.stringify({ type: 'answer', sdp: pc.localDescription }));
+    } else if (m.type === 'ice' && pc) {
+      try { await pc.addIceCandidate(m.candidate); } catch {}
+    }
+  };
+  ws.onclose = () => { if (!$('video').srcObject) return; setStatus('Disconnected.'); };
+}
+
+$('go').onclick = connect;
+$('room').addEventListener('keydown', (e) => e.key === 'Enter' && connect());
+$('unmute').onclick = () => { $('video').muted = false; $('video').play(); };
+$('full').onclick = () => { const v = $('video'); (v.requestFullscreen || v.webkitRequestFullscreen || v.webkitEnterFullscreen).call(v); };
+
+const q = new URLSearchParams(location.search).get('room');
+if (q) { $('room').value = q.toUpperCase(); connect(); }
+</script>
+</body></html>

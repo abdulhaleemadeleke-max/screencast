@@ -1,0 +1,18 @@
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0f1115;color:#e8eaed;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:#181b22;border:1px solid #2a2f3a;border-radius:14px;padding:24px;width:100%;max-width:560px}
+h1{margin:0 0 4px;font-size:24px}
+p.sub{margin:0 0 18px;color:#9aa0ab;font-size:14px}
+a.btn,button{display:inline-block;background:#4f8cff;color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:16px;cursor:pointer;text-decoration:none}
+button.stop{background:#e5484d}
+button.ghost{background:#2a2f3a}
+button:disabled{opacity:.5;cursor:not-allowed}
+input{background:#0f1115;border:1px solid #2a2f3a;border-radius:10px;color:#fff;padding:12px;font-size:20px;letter-spacing:4px;text-transform:uppercase;width:170px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.code{font-size:40px;font-weight:700;letter-spacing:8px;color:#7fb0ff}
+.link{background:#0f1115;border:1px dashed #2f3644;border-radius:8px;padding:8px 10px;font-family:ui-monospace,monospace;font-size:13px;word-break:break-all;margin:6px 0}
+.status{font-size:14px;color:#9aa0ab;margin-top:10px}
+.err{color:#ff8a8a}
+video{width:100%;background:#000;border-radius:10px;margin-top:12px;max-height:70vh}
+.hidden{display:none}
+hr{border:0;border-top:1px solid #2a2f3a;margin:22px 0}

@@ -1,0 +1,9 @@
+{
+  "name": "screencast-online",
+  "version": "2.0.0",
+  "description": "Cast your screen to anyone, anywhere, with a share code (WebRTC)",
+  "main": "server.js",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "express": "^4.19.2", "ws": "^8.18.0" }
+}

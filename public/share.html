@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ScreenCast – Share</title><link rel="stylesheet" href="style.css">
+</head><body>
+<div class="card">
+  <h1>Start casting</h1>
+  <p class="sub">Click start, choose what to share, then give the code to your viewer.</p>
+
+  <div class="row">
+    <button id="start">Start casting</button>
+    <button id="stop" class="stop hidden">Stop</button>
+  </div>
+
+  <div id="info" class="hidden">
+    <div>Your code</div>
+    <div class="code" id="code">······</div>
+    <div class="row"><button id="copy" class="ghost">Copy link</button></div>
+    <div class="sub">Viewers go to this address and enter the code, or open this link:</div>
+    <div class="link" id="link"></div>
+    <div class="status">Viewers connected: <b id="count">0</b></div>
+  </div>
+
+  <video id="preview" class="hidden" autoplay muted playsinline></video>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let ws, stream, iceServers = [], created = false;
+const peers = new Map();
+
+const updateCount = () => ($('count').textContent = peers.size);
+
+async function addViewer(id) {
+  const pc = new RTCPeerConnection({ iceServers });
+  peers.set(id, pc); updateCount();
+  stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+  pc.onicecandidate = (e) => e.candidate && ws.send(JSON.stringify({ type: 'ice', to: id, candidate: e.candidate }));
+  pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState)) removeViewer(id); };
+  await pc.setLocalDescription(await pc.createOffer());
+  ws.send(JSON.stringify({ type: 'offer', to: id, sdp: pc.localDescription }));
+}
+function removeViewer(id) {
+  const pc = peers.get(id);
+  if (pc) { pc.close(); peers.delete(id); updateCount(); }
+}
+
+async function start() {
+  $('status').textContent = '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    $('status').innerHTML = 'This device cannot cast from the browser. On a phone, use the ScreenCast Android app. On a laptop, use Chrome, Edge or Firefox.';
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: true });
+  } catch (e) { $('status').textContent = 'Could not start: ' + e.message; return; }
+
+  try { iceServers = (await (await fetch('/api/ice')).json()).iceServers; } catch { iceServers = []; }
+
+  $('preview').srcObject = stream;
+  $('preview').classList.remove('hidden');
+  $('start').classList.add('hidden');
+  $('stop').classList.remove('hidden');
+  $('status').textContent = 'Connecting to server…';
+  stream.getVideoTracks()[0].addEventListener('ended', stop);
+
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'create' }));
+  ws.onmessage = async (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'created') {
+      created = true;
+      $('code').textContent = m.room;
+      $('link').textContent = `${location.origin}/watch.html?room=${m.room}`;
+      $('info').classList.remove('hidden');
+      $('status').textContent = 'Casting. Waiting for viewers…';
+    } else if (m.type === 'viewer-joined') await addViewer(m.id);
+    else if (m.type === 'viewer-left') removeViewer(m.id);
+    else if (m.type === 'answer') { const pc = peers.get(m.from); if (pc) await pc.setRemoteDescription(m.sdp); }
+    else if (m.type === 'ice') { const pc = peers.get(m.from); if (pc) try { await pc.addIceCandidate(m.candidate); } catch {} }
+  };
+  ws.onclose = () => { if (stream) { $('status').textContent = 'Lost connection to server.'; } };
+}
+
+function stop() {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = null;
+  peers.forEach((pc) => pc.close()); peers.clear(); updateCount();
+  if (ws) ws.close();
+  $('preview').srcObject = null;
+  ['preview', 'info', 'stop'].forEach((id) => $(id).classList.add('hidden'));
+  $('start').classList.remove('hidden');
+  $('status').textContent = 'Casting stopped.';
+}
+
+$('start').onclick = start;
+$('stop').onclick = stop;
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('link').textContent); $('copy').textContent = 'Copied!'; setTimeout(() => ($('copy').textContent = 'Copy link'), 1500); } catch {}
+};
+</script>
+</body></html>
